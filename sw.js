@@ -1,4 +1,4 @@
-const CACHE_NAME = 'sp-com-amor-v4';
+const CACHE_NAME = 'sp-com-amor-v6';
 const ASSETS = [
   './index.html',
   './manifest.json',
