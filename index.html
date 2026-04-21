@@ -296,6 +296,33 @@
           <input type="text" v-model="newItem.description" placeholder="Breve descrição"
                  class="w-full rounded-2xl bg-slate-50 border-none p-4 text-sm font-bold focus:ring-2 focus:ring-red-500 outline-none">
         </div>
+
+        <!-- ENDEREÇO -->
+        <div class="space-y-2">
+          <label class="text-[10px] font-black text-slate-400 uppercase tracking-widest">Endereço</label>
+          <div class="flex gap-2">
+            <input type="text" v-model="newItem.address"
+                   placeholder="Digite o endereço ou local"
+                   @keyup.enter.prevent="searchAddress"
+                   class="flex-1 rounded-2xl bg-slate-50 border-none p-4 text-sm font-bold focus:ring-2 focus:ring-red-500 outline-none min-w-0">
+            <button type="button" @click="searchAddress" :disabled="addrSearching"
+                    class="bg-slate-900 text-white px-4 rounded-2xl font-black text-[11px] uppercase tracking-widest active:scale-95 transition-all disabled:opacity-50 min-w-[56px] min-h-[56px] flex items-center justify-center">
+              {{ addrSearching ? '...' : '🔍' }}
+            </button>
+          </div>
+          <p v-if="addrError" class="text-[11px] text-red-600 font-bold px-2">{{ addrError }}</p>
+          <p class="text-[10px] text-slate-400 italic px-2 leading-relaxed">Digite e toque na lupa, ou toque no mapa abaixo para escolher o ponto exato.</p>
+        </div>
+
+        <!-- MAPA SELETOR -->
+        <div class="space-y-2">
+          <div id="picker-map" class="w-full h-56 rounded-2xl overflow-hidden border-2 border-slate-100 bg-slate-100"></div>
+          <p class="text-[10px] font-bold text-slate-500 px-2">
+            <span v-if="newItem.lat">📍 Coordenadas: {{ newItem.lat.toFixed(5) }}, {{ newItem.lng.toFixed(5) }}</span>
+            <span v-else>Nenhum ponto selecionado ainda.</span>
+          </p>
+        </div>
+
         <div class="flex gap-4 pt-2">
           <button type="button" @click="view = 'Cards'"
                   class="flex-1 py-4 font-black text-slate-400 uppercase text-[11px] tracking-widest min-h-[56px]">Voltar</button>
@@ -394,7 +421,14 @@ createApp({
     let mapReady      = false;
 
     // ── Form para novo item ─────────────────────────────────────────────────
-    const newItem = ref({ title: '', date: '', time: '', description: '' });
+    const newItem = ref({
+      title: '', date: '', time: '', description: '',
+      address: '', lat: null, lng: null,
+    });
+    const addrSearching = ref(false);
+    const addrError = ref('');
+    let pickerMap = null;
+    let pickerMarker = null;
 
     // ── Dados estáticos ─────────────────────────────────────────────────────
     const hotelLocation = { lat: -23.5583, lng: -46.6339 };
@@ -538,16 +572,147 @@ createApp({
     function addNewItem() {
       const v = newItem.value;
       if (!v.title || !v.date || !v.time) return;
+      const lat = v.lat ?? -23.55;
+      const lng = v.lng ?? -46.63;
+      const address = (v.address && v.address.trim()) || v.title;
       items.value = [...items.value, {
         id: Math.random().toString(36).substr(2, 9),
         date: v.date, time: v.time, title: v.title, description: v.description || '',
-        location: { lat: -23.55, lng: -46.63, address: v.title },
+        location: { lat, lng, address },
         completed: false, rating: 0, comment: '', category: 'culture', spent: 0,
       }];
       saveToStorage();
-      newItem.value = { title: '', date: '', time: '', description: '' };
+      resetNewItem();
       view.value = 'Cards';
     }
+
+    function resetNewItem() {
+      newItem.value = { title: '', date: '', time: '', description: '', address: '', lat: null, lng: null };
+      addrError.value = '';
+    }
+
+    // ── Geocoding (Nominatim - precisa de internet) ─────────────────────────
+    async function searchAddress() {
+      const q = (newItem.value.address || '').trim();
+      if (!q) { addrError.value = 'Digite um endereço primeiro.'; return; }
+      if (!navigator.onLine) { addrError.value = 'Sem internet. Toque no mapa para escolher o ponto.'; return; }
+      addrError.value = '';
+      addrSearching.value = true;
+      try {
+        const url = `https://nominatim.openstreetmap.org/search?format=json&limit=1&countrycodes=br&q=${encodeURIComponent(q + ', São Paulo')}`;
+        const res = await fetch(url, { headers: { 'Accept': 'application/json' } });
+        const data = await res.json();
+        if (!data || !data.length) { addrError.value = 'Endereço não encontrado. Tente outro termo ou toque no mapa.'; return; }
+        const r = data[0];
+        const lat = parseFloat(r.lat), lng = parseFloat(r.lon);
+        newItem.value.lat = lat;
+        newItem.value.lng = lng;
+        newItem.value.address = r.display_name;
+        if (pickerMap) {
+          pickerMap.setView([lat, lng], 16);
+          setPickerMarker(lat, lng);
+        }
+      } catch (e) {
+        addrError.value = 'Erro na busca. Toque no mapa para escolher.';
+      } finally {
+        addrSearching.value = false;
+      }
+    }
+
+    // ── Picker map ──────────────────────────────────────────────────────────
+    function initPickerMap() {
+      const container = document.getElementById('picker-map');
+      if (!container) { setTimeout(initPickerMap, 200); return; }
+      if (pickerMap) { pickerMap.remove(); pickerMap = null; pickerMarker = null; }
+
+      const start = newItem.value.lat
+        ? [newItem.value.lat, newItem.value.lng]
+        : [hotelLocation.lat, hotelLocation.lng];
+
+      pickerMap = L.map('picker-map', { zoomControl: true }).setView(start, 14);
+      L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+        attribution: '© OpenStreetMap', maxZoom: 19,
+      }).addTo(pickerMap);
+
+      if (newItem.value.lat) setPickerMarker(newItem.value.lat, newItem.value.lng);
+
+      pickerMap.on('click', (e) => {
+        const { lat, lng } = e.latlng;
+        newItem.value.lat = lat;
+        newItem.value.lng = lng;
+        setPickerMarker(lat, lng);
+        reverseGeocode(lat, lng);
+      });
+
+      setTimeout(() => pickerMap && pickerMap.invalidateSize(), 200);
+    }
+
+    function setPickerMarker(lat, lng) {
+      if (!pickerMap) return;
+      if (pickerMarker) {
+        pickerMarker.setLatLng([lat, lng]);
+      } else {
+        pickerMarker = L.marker([lat, lng], { draggable: true }).addTo(pickerMap);
+        pickerMarker.on('dragend', (e) => {
+          const ll = e.target.getLatLng();
+          newItem.value.lat = ll.lat;
+          newItem.value.lng = ll.lng;
+          reverseGeocode(ll.lat, ll.lng);
+        });
+      }
+    }
+
+    async function reverseGeocode(lat, lng) {
+      if (!navigator.onLine) return;
+      try {
+        const url = `https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lng}`;
+        const res = await fetch(url, { headers: { 'Accept': 'application/json' } });
+        const data = await res.json();
+        if (data && data.display_name) newItem.value.address = data.display_name;
+      } catch (e) { /* silencioso */ }
+    }
+
+    function destroyPickerMap() {
+      if (pickerMap) { pickerMap.remove(); pickerMap = null; pickerMarker = null; }
+    }
+
+    // ── Explorar SP: 20 pontos românticos ───────────────────────────────────
+    const explorerPoints = [
+      { name: 'Parque Ibirapuera',          lat: -23.5874, lng: -46.6576, cat: 'park',    desc: 'Caminhar de mãos dadas e pôr do sol no lago.' },
+      { name: 'MASP',                       lat: -23.5614, lng: -46.6559, cat: 'culture', desc: 'Arte mundial no vão livre da Paulista.' },
+      { name: 'Mirante do Sesc Paulista',   lat: -23.5707, lng: -46.6457, cat: 'culture', desc: 'Vista panorâmica gratuita da cidade.' },
+      { name: 'Beco do Batman',             lat: -23.5567, lng: -46.6911, cat: 'culture', desc: 'Grafites e fotos na Vila Madalena.' },
+      { name: 'Praça Pôr do Sol',           lat: -23.5539, lng: -46.7028, cat: 'park',    desc: 'O pôr do sol mais famoso de SP.' },
+      { name: 'Parque Trianon',             lat: -23.5638, lng: -46.6535, cat: 'park',    desc: 'Mata atlântica em plena Paulista.' },
+      { name: 'Theatro Municipal',          lat: -23.5454, lng: -46.6388, cat: 'culture', desc: 'Espetáculos clássicos em prédio histórico.' },
+      { name: 'Mercado Municipal',          lat: -23.5418, lng: -46.6291, cat: 'food',    desc: 'Sanduíche de mortadela e pastel de bacalhau.' },
+      { name: 'Bar Brahma Centro',          lat: -23.5462, lng: -46.6427, cat: 'food',    desc: 'Chopp e samba na esquina mais paulistana.' },
+      { name: 'Centro Cultural São Paulo',  lat: -23.5719, lng: -46.6440, cat: 'culture', desc: 'Programação cultural gratuita e cafés.' },
+      { name: 'Pinacoteca + Parque da Luz', lat: -23.5346, lng: -46.6334, cat: 'culture', desc: 'Esculturas, café e jardim secreto no Centro.' },
+      { name: 'Casa das Rosas',             lat: -23.5654, lng: -46.6519, cat: 'culture', desc: 'Casarão de poesia com jardim de rosas.' },
+      { name: 'Vista Restaurant (Hilton)',  lat: -23.5751, lng: -46.6932, cat: 'food',    desc: 'Jantar no rooftop com vista 360° de SP.' },
+      { name: 'Skye Bar (Unique)',          lat: -23.5760, lng: -46.6688, cat: 'food',    desc: 'Drinks na piscina vermelha icônica.' },
+      { name: 'Roof Top KAA',               lat: -23.5798, lng: -46.6943, cat: 'food',    desc: 'Jardim vertical e ambiente romântico.' },
+      { name: 'Parque Burle Marx',          lat: -23.6298, lng: -46.7232, cat: 'park',    desc: 'Lagos, trilhas e fauna em meio à cidade.' },
+      { name: 'Catedral da Sé',             lat: -23.5505, lng: -46.6333, cat: 'culture', desc: 'Arquitetura neogótica imponente no Centro.' },
+      { name: 'Feira da Liberdade (Domingo)', lat: -23.5588, lng: -46.6341, cat: 'food',  desc: 'Comida japonesa e cultura asiática viva.' },
+      { name: 'Ponte Estaiada (vista)',     lat: -23.6133, lng: -46.6961, cat: 'culture', desc: 'Símbolo moderno de SP, linda à noite.' },
+      { name: 'Minhocão Park (domingo)',    lat: -23.5435, lng: -46.6541, cat: 'park',    desc: 'Caminhada e arte urbana aos domingos.' },
+    ];
+
+    function addExplorerToRoute(point) {
+      newItem.value = {
+        title: point.name,
+        date: '', time: '',
+        description: point.desc,
+        address: point.name + ', São Paulo',
+        lat: point.lat, lng: point.lng,
+      };
+      destroyMap();
+      view.value = 'add';
+    }
+    // expõe globalmente para os botões dentro dos popups Leaflet
+    window.__addExplorerToRoute = (idx) => addExplorerToRoute(explorerPoints[idx]);
 
     // ── Mapa (Leaflet) ───────────────────────────────────────────────────────
     function initMap() {
@@ -599,6 +764,28 @@ createApp({
         L.circleMarker([hotelLocation.lat, hotelLocation.lng], {
           radius: 11, fillColor: '#1e40af', color: '#fff', weight: 3, fillOpacity: 1,
         }).addTo(markersGroup).bindPopup('<b style="font-size:12px">🏨 Hotel Banri</b>');
+      } else if (mapSubView.value === 'explorar') {
+        explorerPoints.forEach((p, idx) => {
+          const emoji = categoryEmoji(p.cat);
+          const popupHtml = `
+            <div style="min-width:180px">
+              <div style="font-size:13px;font-weight:bold;margin-bottom:4px">${emoji} ${p.name}</div>
+              <div style="font-size:11px;color:#555;margin-bottom:8px;line-height:1.4">${p.desc}</div>
+              <button onclick="window.__addExplorerToRoute(${idx})"
+                style="background:#dc2626;color:#fff;border:none;padding:8px 12px;border-radius:10px;font-size:10px;font-weight:900;text-transform:uppercase;letter-spacing:0.05em;width:100%;cursor:pointer">
+                + Adicionar ao Roteiro
+              </button>
+            </div>`;
+          L.circleMarker([p.lat, p.lng], {
+            radius: 9,
+            fillColor: '#a855f7', color: '#fff', weight: 3, fillOpacity: 1,
+          }).addTo(markersGroup).bindPopup(popupHtml);
+        });
+
+        // Hotel também aparece para referência
+        L.circleMarker([hotelLocation.lat, hotelLocation.lng], {
+          radius: 11, fillColor: '#1e40af', color: '#fff', weight: 3, fillOpacity: 1,
+        }).addTo(markersGroup).bindPopup('<b style="font-size:12px">🏨 Hotel Banri</b>');
       }
     }
 
@@ -615,13 +802,20 @@ createApp({
     }
 
     // ── Watchers ─────────────────────────────────────────────────────────────
-    watch(view, (v) => {
+    watch(view, (v, old) => {
       if (v === 'Mapa') {
         nextTick(() => setTimeout(initMap, 100));
-      } else {
+      } else if (old === 'Mapa') {
         destroyMap();
       }
+      if (v === 'add') {
+        nextTick(() => setTimeout(initPickerMap, 100));
+      } else if (old === 'add') {
+        destroyPickerMap();
+      }
     });
+
+    watch(mapSubView, () => { renderMarkers(); });
 
     // ── Init ─────────────────────────────────────────────────────────────────
     loadFromStorage();
@@ -686,6 +880,7 @@ createApp({
 
     return {
       view, mapSubView, items, selectedItem, newItem,
+      addrSearching, addrError,
       uniqueDates, totalSpent, paidCount, dailyStats,
       tips, navItems,
       fmt, formatDateLabel, fmtDateShort, fmtDateLong,
@@ -693,6 +888,7 @@ createApp({
       toggleComplete, setRating, saveToStorage,
       openDetail, showOnMap, openGoogleMaps, calculateUber,
       addNewItem, renderMarkers,
+      searchAddress,
     };
   }
 }).mount('#app');
