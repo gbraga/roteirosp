@@ -16,7 +16,15 @@
     * { -webkit-tap-highlight-color: transparent; }
     body { overscroll-behavior: none; }
     html, body { height: 100%; margin: 0; padding: 0; }
-    #app { height: 100%; }
+    #app { height: 100%; display: flex; flex-direction: column; }
+    #app > header { flex: 0 0 auto; }
+    #app > nav { flex: 0 0 auto; }
+    #app > main {
+      flex: 1 1 auto;
+      min-height: 0;
+      overflow-y: auto;
+      -webkit-overflow-scrolling: touch;
+    }
 
     .no-scrollbar::-webkit-scrollbar { display: none; }
     .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
