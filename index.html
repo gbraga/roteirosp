@@ -13,43 +13,37 @@
   <link rel="stylesheet" href="./assets/leaflet.css">
   <script src="./assets/tailwind.js"></script>
   <style>
-    * { -webkit-tap-highlight-color: transparent; }
-    body { overscroll-behavior: none; }
+    * { -webkit-tap-highlight-color: transparent; box-sizing: border-box; }
     html, body {
-      height: 100%;
-      height: 100dvh;
       margin: 0;
       padding: 0;
-      overflow: hidden;
-      position: fixed;
-      inset: 0;
       width: 100%;
-      -webkit-overflow-scrolling: touch;
+      min-height: 100%;
+      background: #f8fafc;
+    }
+    body {
+      overscroll-behavior-y: none;
+      -webkit-text-size-adjust: 100%;
     }
     #app {
-      position: absolute;
-      inset: 0;
-      overflow: hidden;
+      min-height: 100vh;
+      min-height: 100dvh;
+      padding-top: var(--header-h, 72px);
+      padding-bottom: var(--nav-h, 90px);
     }
-    #app > header {
-      position: absolute;
+    #top-header {
+      position: fixed;
       top: 0; left: 0; right: 0;
       z-index: 50;
+      background: #fff;
     }
-    #app > nav {
-      position: absolute;
+    #bottom-nav {
+      position: fixed;
       bottom: 0; left: 0; right: 0;
       z-index: 100;
-    }
-    #app > main {
-      position: absolute;
-      left: 0; right: 0;
-      top: var(--header-h, 72px);
-      bottom: 0;
-      overflow-y: scroll;
-      overflow-x: hidden;
-      -webkit-overflow-scrolling: touch;
-      touch-action: pan-y;
+      background: rgba(255,255,255,0.95);
+      backdrop-filter: blur(12px);
+      -webkit-backdrop-filter: blur(12px);
     }
 
     .no-scrollbar::-webkit-scrollbar { display: none; }
@@ -81,7 +75,7 @@
 <div id="app">
 
   <!-- ===== HEADER ===== -->
-  <header class="bg-white px-5 pt-safe flex items-center justify-between border-b border-slate-100 shadow-sm z-50"
+  <header id="top-header" class="px-5 flex items-center justify-between border-b border-slate-100 shadow-sm"
           style="padding-top: max(1.25rem, env(safe-area-inset-top)); padding-bottom: 1rem;">
     <div class="flex items-center gap-3">
       <div class="bg-gradient-to-br from-red-500 to-red-600 p-2 rounded-xl shadow-lg shadow-red-200 flex-shrink-0">
@@ -103,7 +97,7 @@
   </header>
 
   <!-- ===== MAIN CONTENT ===== -->
-  <main class="no-scrollbar px-4 pt-4" style="padding-bottom: 7rem;">
+  <main class="px-4 pt-4">
 
     <!-- VIEW: CARDS (ROTEIRO) -->
     <div v-if="view === 'Cards'" class="space-y-8 anim-slide-b">
@@ -314,7 +308,8 @@
   </main>
 
   <!-- ===== BOTTOM NAV ===== -->
-  <nav class="bg-white/95 backdrop-blur-xl border-t border-slate-100 flex justify-around items-center safe-bottom px-2 pt-3">
+  <nav id="bottom-nav" class="border-t border-slate-100 flex justify-around items-center px-2 pt-3"
+       style="padding-bottom: max(1rem, env(safe-area-inset-bottom));">
     <button v-for="nav in navItems" :key="nav.v" @click="view = nav.v"
             :class="view === nav.v ? 'text-red-600 scale-110' : 'text-slate-300'"
             class="flex flex-col items-center flex-1 transition-all duration-300 min-w-[44px] min-h-[44px] justify-center pb-1">
@@ -631,20 +626,20 @@ createApp({
     // ── Init ─────────────────────────────────────────────────────────────────
     loadFromStorage();
 
-    // Mede dinamicamente a altura do header (varia com safe-area-inset)
-    function updateHeaderHeight() {
-      const header = document.querySelector('#app > header');
-      if (header) {
-        document.documentElement.style.setProperty('--header-h', header.offsetHeight + 'px');
-      }
+    // Mede dinamicamente as alturas de header/nav (variam com safe-area-inset)
+    function updateChromeHeights() {
+      const header = document.getElementById('top-header');
+      const nav = document.getElementById('bottom-nav');
+      if (header) document.documentElement.style.setProperty('--header-h', header.offsetHeight + 'px');
+      if (nav) document.documentElement.style.setProperty('--nav-h', nav.offsetHeight + 'px');
     }
     nextTick(() => {
-      updateHeaderHeight();
-      setTimeout(updateHeaderHeight, 100);
-      setTimeout(updateHeaderHeight, 500);
+      updateChromeHeights();
+      setTimeout(updateChromeHeights, 100);
+      setTimeout(updateChromeHeights, 500);
     });
-    window.addEventListener('resize', updateHeaderHeight);
-    window.addEventListener('orientationchange', () => setTimeout(updateHeaderHeight, 200));
+    window.addEventListener('resize', updateChromeHeights);
+    window.addEventListener('orientationchange', () => setTimeout(updateChromeHeights, 200));
 
     // Service Worker
     if ('serviceWorker' in navigator) {

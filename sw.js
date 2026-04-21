@@ -1,4 +1,4 @@
-const CACHE_NAME = 'sp-com-amor-v1';
+const CACHE_NAME = 'sp-com-amor-v3';
 const ASSETS = [
   './index.html',
   './manifest.json',
@@ -29,7 +29,30 @@ self.addEventListener('activate', event => {
 });
 
 self.addEventListener('fetch', event => {
+  const req = event.request;
+  const url = new URL(req.url);
+  // Network-first para o HTML (garante atualizações)
+  const isHTML = req.mode === 'navigate'
+    || req.destination === 'document'
+    || url.pathname.endsWith('/')
+    || url.pathname.endsWith('index.html');
+
+  if (isHTML) {
+    event.respondWith(
+      fetch(req)
+        .then(res => {
+          const copy = res.clone();
+          caches.open(CACHE_NAME).then(c => c.put(req, copy)).catch(() => {});
+          return res;
+        })
+        .catch(() => caches.match(req).then(c => c || caches.match('./index.html')))
+    );
+    return;
+  }
+
+  // Cache-first para o resto
   event.respondWith(
-    caches.match(event.request).then(cached => cached || fetch(event.request))
+    caches.match(req).then(cached => cached || fetch(req))
   );
 });
+
