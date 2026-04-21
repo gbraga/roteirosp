@@ -16,7 +16,7 @@
     * { -webkit-tap-highlight-color: transparent; }
     body { overscroll-behavior: none; }
     html, body { height: 100%; margin: 0; padding: 0; }
-    #app { height: 100%; display: block; }
+    #app { height: 100%; }
 
     .no-scrollbar::-webkit-scrollbar { display: none; }
     .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
@@ -69,7 +69,7 @@
   </header>
 
   <!-- ===== MAIN CONTENT ===== -->
-  <main class="flex-1 overflow-y-auto no-scrollbar px-4 pt-4" style="padding-bottom: 7rem;">
+  <main class="flex-1 min-h-0 overflow-y-auto no-scrollbar px-4 pt-4" style="padding-bottom: 7rem; -webkit-overflow-scrolling: touch;">
 
     <!-- VIEW: CARDS (ROTEIRO) -->
     <div v-if="view === 'Cards'" class="space-y-8 anim-slide-b">
@@ -455,11 +455,11 @@ createApp({
 
     // ── Storage ──────────────────────────────────────────────────────────────
     function saveToStorage() {
-      localStorage.setItem('sp_roteiro', JSON.stringify(items.value));
+      localStorage.setItem('sp_roteiro_v2', JSON.stringify(items.value));
     }
 
     function loadFromStorage() {
-      const saved = localStorage.getItem('sp_roteiro');
+      const saved = localStorage.getItem('sp_roteiro_v2');
       if (saved) {
         items.value = JSON.parse(saved);
       } else {
@@ -616,7 +616,7 @@ createApp({
         // QUINTA-FEIRA 23/04
         { id: '7', spent: 0, date: '2026-04-23', time: '10:00', title: 'Theatro Municipal', description: 'Visita guiada pelo teatro histórico de 1911. Arquitetura eclética deslumbrante.', location: { lat: -23.5461, lng: -46.6371, address: 'Praça Ramos de Azevedo, s/n - Centro, São Paulo' }, completed: false, rating: 0, comment: '', category: 'culture', transportTip: 'Estação República (Linhas 2 e 3) a 8 min a pé' },
         { id: '8', spent: 0, date: '2026-04-23', time: '11:30', title: 'Mosteiro de São Bento', description: 'Silêncio, arquitetura e espiritualidade. Missas gregoriana às domingos são famosas.', location: { lat: -23.5465, lng: -46.6345, address: 'Largo de São Bento, s/n - Centro, São Paulo' }, completed: false, rating: 0, comment: '', category: 'culture' },
-        { id: '9', spent: 0, date: '2026-04-23', time: '13:00', title: 'Restaurante Abarú (Rooftop)', description: 'Almoço no rooftop com vista para o Centro histórico. Menu executivo especial.', location: { lat: -23.5464, lng: -46.6375, address: 'Shopping Light - R. Coronel Xavier de Toledo, 23' }, completed: false, rating: 0, comment: '', category: 'food' },
+        { id: '9', spent: 0, date: '2026-04-23', time: '13:00', title: 'Restaurante Abarú', description: 'Almoço no rooftop com vista para o Centro histórico. Menu executivo especial.', location: { lat: -23.5464, lng: -46.6375, address: 'Shopping Light - R. Coronel Xavier de Toledo, 23' }, completed: false, rating: 0, comment: '', category: 'food' },
         { id: '10', spent: 0, date: '2026-04-23', time: '15:30', title: 'Farol Santander', description: 'Mirante clássico no topo do Altino Arantes. Vista 360° de São Paulo.', location: { lat: -23.5451, lng: -46.6341, address: 'R. João Brícola, 24 - Centro, São Paulo' }, completed: false, rating: 0, comment: '', category: 'culture' },
         { id: '11', spent: 0, date: '2026-04-23', time: '20:00', title: 'Bar dos Arcos', description: 'Drinks cinematográficos sob os arcos iluminados. Ambiente romântico e histórico.', location: { lat: -23.5461, lng: -46.6371, address: 'Praça Ramos de Azevedo - Centro, São Paulo' }, completed: false, rating: 0, comment: '', category: 'food' },
 
@@ -628,15 +628,15 @@ createApp({
         { id: '16', spent: 0, date: '2026-04-24', time: '21:00', title: 'Restaurante Pecatto', description: 'Jantar especial no Tatuapé. Culinária italiana autoral em ambiente intimista.', location: { lat: -23.5435, lng: -46.5620, address: 'Tatuapé, São Paulo' }, completed: false, rating: 0, comment: '', category: 'food', transportTip: 'Uber (~R$ 25) ou Metrô Linha 3 até Tatuapé' },
 
         // SÁBADO 25/04
-        { id: '17', spent: 0, date: '2026-04-25', time: '10:00', title: 'Pinacoteca do Estado', description: 'Maior museu de artes visuais de SP. Jardim de esculturas, café e acervo permanente.', location: { lat: -23.5350, lng: -46.6339, address: 'Praça da Luz, 2 - Luz, São Paulo' }, completed: false, rating: 0, comment: '', category: 'culture', transportTip: 'Estação Luz (Linhas 1 e 4) a 3 min a pé' },
+        { id: '17', spent: 0, date: '2026-04-25', time: '10:00', title: 'Pinacoteca', description: 'Maior museu de artes visuais de SP. Jardim de esculturas, café e acervo permanente.', location: { lat: -23.5350, lng: -46.6339, address: 'Praça da Luz, 2 - Luz, São Paulo' }, completed: false, rating: 0, comment: '', category: 'culture', transportTip: 'Estação Luz (Linhas 1 e 4) a 3 min a pé' },
         { id: '18', spent: 0, date: '2026-04-25', time: '12:30', title: 'Café da Pina', description: 'Almoço no café interno da Pinacoteca, com mesas no jardim de esculturas.', location: { lat: -23.5350, lng: -46.6339, address: 'Praça da Luz, 2 - Luz, São Paulo' }, completed: false, rating: 0, comment: '', category: 'food' },
-        { id: '19', spent: 0, date: '2026-04-25', time: '15:00', title: 'Fábrica da Dengo (Pinheiros)', description: 'Experiência sensorial com chocolate artesanal. Degustação guiada e loja conceito.', location: { lat: -23.5855, lng: -46.6817, address: 'R. da Consolação, 3382 - Pinheiros, São Paulo' }, completed: false, rating: 0, comment: '', category: 'food', transportTip: 'Uber (~R$ 18) do Centro' },
-        { id: '20', spent: 0, date: '2026-04-25', time: '18:00', title: 'Praça do Pôr do Sol', description: 'Pôr do sol inesquecível com vista para São Paulo. Local de encontro e música ao vivo.', location: { lat: -23.5539, lng: -46.7028, address: 'R. Aspicuelta - Vila Madalena, São Paulo' }, completed: false, rating: 0, comment: '', category: 'park', transportTip: 'A pé (~15 min) ou Uber de Pinheiros' },
+        { id: '19', spent: 0, date: '2026-04-25', time: '15:00', title: 'Fábrica da Dengo', description: 'Experiência sensorial com chocolate artesanal. Degustação guiada e loja conceito.', location: { lat: -23.5855, lng: -46.6817, address: 'R. da Consolação, 3382 - Pinheiros, São Paulo' }, completed: false, rating: 0, comment: '', category: 'food', transportTip: 'Uber (~R$ 18) do Centro' },
+        { id: '20', spent: 0, date: '2026-04-25', time: '18:00', title: 'Praça Pôr do Sol', description: 'Pôr do sol inesquecível com vista para São Paulo. Local de encontro e música ao vivo.', location: { lat: -23.5539, lng: -46.7028, address: 'R. Aspicuelta - Vila Madalena, São Paulo' }, completed: false, rating: 0, comment: '', category: 'park', transportTip: 'A pé (~15 min) ou Uber de Pinheiros' },
 
         // DOMINGO 26/04
         { id: '21', spent: 0, date: '2026-04-26', time: '10:00', title: 'Museu da Língua Portuguesa', description: 'Gratuito aos domingos! Exposições interativas sobre o idioma português. Vale muito a visita.', location: { lat: -23.5348, lng: -46.6340, address: 'Praça da Luz, s/n - Luz, São Paulo' }, completed: false, rating: 0, comment: '', category: 'culture', transportTip: 'Estação Luz (Linhas 1 e 4) a 1 min a pé' },
         { id: '22', spent: 0, date: '2026-04-26', time: '13:00', title: 'Feira da Liberdade', description: 'Almoço de despedida na maior feira japonesa fora do Japão. Comida, cultura e recordações.', location: { lat: -23.5588, lng: -46.6341, address: 'Praça da Liberdade - Liberdade, São Paulo' }, completed: false, rating: 0, comment: '', category: 'food' },
-        { id: '23', spent: 0, date: '2026-04-26', time: '15:00', title: 'Check-out & Aeroporto', description: 'Saída do Hotel Banri. Obrigado, São Paulo! Até a próxima. 🥹', location: { lat: -23.5583, lng: -46.6339, address: 'R. Galvão Bueno, 209 - Liberdade, São Paulo' }, completed: false, rating: 0, comment: '', category: 'hotel' },
+        { id: '23', spent: 0, date: '2026-04-26', time: '15:00', title: 'Check-out Hotel', description: 'Saída do Hotel Banri. Obrigado, São Paulo! Até a próxima. 🥹', location: { lat: -23.5583, lng: -46.6339, address: 'R. Galvão Bueno, 209 - Liberdade, São Paulo' }, completed: false, rating: 0, comment: '', category: 'hotel' },
       ];
     }
 
