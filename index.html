@@ -126,6 +126,31 @@
 
     /* Gauge Leaflet icons path */
     .leaflet-container { font-family: inherit; }
+
+    /* Tooltip de nome em cima dos pins */
+    .leaflet-tooltip.pin-label {
+      background: rgba(255, 255, 255, 0.95);
+      border: 1px solid #e2e8f0;
+      border-radius: 8px;
+      padding: 2px 8px;
+      font-size: 10px;
+      font-weight: 800;
+      color: #1e293b;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.08);
+      white-space: nowrap;
+    }
+    .leaflet-tooltip.pin-label::before { display: none; }
+
+    /* Pulse animado para a localiza\u00e7\u00e3o do usu\u00e1rio */
+    @keyframes userPulse {
+      0%   { box-shadow: 0 0 0 0 rgba(59, 130, 246, 0.6); }
+      70%  { box-shadow: 0 0 0 18px rgba(59, 130, 246, 0); }
+      100% { box-shadow: 0 0 0 0 rgba(59, 130, 246, 0); }
+    }
+    .user-location-pulse {
+      animation: userPulse 1.8s ease-out infinite;
+      border-radius: 50%;
+    }
   </style>
 </head>
 <body class="bg-slate-50 font-sans text-slate-900">
@@ -141,7 +166,29 @@
     <span class="cookie-sm">🍪</span>
     Powered by Biscoitinho
   </div>
+  <div id="splash-error" style="display:none; margin-top:1.5rem; max-width:90%; padding:1rem; background:#fef2f2; border:1px solid #fecaca; border-radius:12px; color:#b91c1c; font-size:11px; font-family:monospace; word-break:break-word; text-align:left;"></div>
 </div>
+
+<script>
+  // Fallback: garante que o splash some mesmo se Vue falhar.
+  window.__hideSplash = function() {
+    var s = document.getElementById('splash');
+    if (!s) return;
+    s.classList.add('hide');
+    setTimeout(function(){ if (s.parentNode) s.parentNode.removeChild(s); }, 520);
+  };
+  // Hard timeout: se em 5s o splash ainda existir, esconde de qualquer jeito.
+  setTimeout(function(){ window.__hideSplash(); }, 5000);
+
+  // Captura erros JS e mostra no splash (útil para diagnosticar tela travada).
+  window.addEventListener('error', function(e){
+    var box = document.getElementById('splash-error');
+    if (box) {
+      box.style.display = 'block';
+      box.textContent = '⚠ ' + (e.message || 'Erro') + (e.filename ? ' @ ' + e.filename.split('/').pop() + ':' + e.lineno : '');
+    }
+  });
+</script>
 
 <div id="app">
 
@@ -349,7 +396,7 @@
     </div>
 
     <!-- VIEW: MAPA -->
-    <div v-if="view === 'Mapa'" class="anim-zoom flex flex-col gap-4" style="height: calc(100vh - 10rem);">
+    <div v-if="view === 'Mapa'" class="anim-zoom flex flex-col gap-3" style="height: calc(100vh - 10rem);">
       <div class="flex p-1 bg-slate-200/50 rounded-2xl flex-shrink-0">
         <button @click="mapSubView = 'jornada'"
                 :class="mapSubView === 'jornada' ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-500'"
@@ -358,6 +405,41 @@
                 :class="mapSubView === 'explorar' ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-500'"
                 class="flex-1 py-2.5 text-[10px] font-black uppercase rounded-xl transition-all min-h-[44px]">Explorar SP</button>
       </div>
+
+      <!-- Filtros (só no modo Explorar) -->
+      <div v-if="mapSubView === 'explorar'" class="flex-shrink-0 bg-white rounded-2xl p-3 shadow-sm border border-slate-100">
+        <div class="flex items-center justify-between mb-2">
+          <span class="text-[10px] font-black text-slate-400 uppercase tracking-widest">Filtros</span>
+          <span class="text-[10px] font-bold text-slate-400">{{ explorerVisibleCount }} pontos</span>
+        </div>
+        <div class="flex flex-wrap gap-1.5">
+          <button v-for="opt in explorerCatOptions" :key="opt.key"
+                  @click="explorerCategories[opt.key] = !explorerCategories[opt.key]; renderMarkers()"
+                  :class="explorerCategories[opt.key] ? 'bg-red-50 text-red-600 border-red-200' : 'bg-slate-50 text-slate-400 border-slate-200'"
+                  class="flex items-center gap-1 px-2.5 py-1.5 rounded-xl border text-[10px] font-bold uppercase tracking-wider active:scale-95 transition-all min-h-[36px]">
+            <span class="text-sm">{{ opt.emoji }}</span>
+            <span>{{ opt.label }}</span>
+          </button>
+        </div>
+        <div class="flex items-center justify-between mt-3 pt-3 border-t border-slate-100 gap-2">
+          <label class="flex items-center gap-2 cursor-pointer flex-1 min-w-0">
+            <input type="checkbox" v-model="showPinNames" @change="renderMarkers()"
+                   class="w-4 h-4 rounded text-red-600 focus:ring-red-500 flex-shrink-0">
+            <span class="text-[11px] font-bold text-slate-700 truncate">Exibir nomes nos pins</span>
+          </label>
+          <button @click="locateMe"
+                  :disabled="locating"
+                  class="bg-blue-600 text-white px-3 py-2 rounded-xl text-[10px] font-black uppercase tracking-wider active:scale-95 transition-all disabled:opacity-50 flex items-center gap-1.5 min-h-[36px]">
+            <svg xmlns="http://www.w3.org/2000/svg" class="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5">
+              <circle cx="12" cy="12" r="3"/>
+              <path stroke-linecap="round" d="M12 2v3M12 19v3M2 12h3M19 12h3"/>
+            </svg>
+            <span>{{ locating ? '...' : 'GPS' }}</span>
+          </button>
+        </div>
+        <p v-if="locateError" class="text-[10px] font-bold text-red-600 mt-2">{{ locateError }}</p>
+      </div>
+
       <div class="flex-1 rounded-[2rem] overflow-hidden border-4 border-white shadow-2xl" style="min-height: 0;">
         <div id="map-container" class="h-full w-full"></div>
       </div>
@@ -525,6 +607,19 @@ createApp({
     const pendingMapFocus = ref(null);
     const showArchived = ref(false);
 
+    // ── Filtros do Explorar SP ──────────────────────────────────────────────
+    const explorerCatOptions = [
+      { key: 'food',     emoji: '🍜', label: 'Comida' },
+      { key: 'culture',  emoji: '🏛', label: 'Cultura' },
+      { key: 'park',     emoji: '🌳', label: 'Parques' },
+      { key: 'shopping', emoji: '🛍', label: 'Compras' },
+    ];
+    const explorerCategories = ref({ food: true, culture: true, park: true, shopping: true });
+    const showPinNames = ref(false);
+    const locating    = ref(false);
+    const locateError = ref('');
+    let userLocationMarker = null;
+
     let mapInstance   = null;
     let markersGroup  = null;
     const markersMap  = new Map();
@@ -568,6 +663,10 @@ createApp({
     );
 
     const archivedCount = computed(() => items.value.filter(i => i.archived).length);
+
+    const explorerVisibleCount = computed(() =>
+      explorerPoints.filter(p => explorerCategories.value[p.cat]).length
+    );
 
     const totalSpent = computed(() =>
       items.value.reduce((acc, i) => acc + (Number(i.spent) || 0), 0)
@@ -941,6 +1040,7 @@ createApp({
         }).addTo(markersGroup).bindPopup('<b style="font-size:12px">🏨 Hotel Banri</b>');
       } else if (mapSubView.value === 'explorar') {
         explorerPoints.forEach((p, idx) => {
+          if (!explorerCategories.value[p.cat]) return;
           const emoji = categoryEmoji(p.cat);
           const popupHtml = `
             <div style="min-width:180px">
@@ -951,10 +1051,16 @@ createApp({
                 + Adicionar ao Roteiro
               </button>
             </div>`;
-          L.circleMarker([p.lat, p.lng], {
+          const marker = L.circleMarker([p.lat, p.lng], {
             radius: 9,
             fillColor: '#a855f7', color: '#fff', weight: 3, fillOpacity: 1,
           }).addTo(markersGroup).bindPopup(popupHtml);
+          if (showPinNames.value) {
+            marker.bindTooltip(p.name, {
+              permanent: true, direction: 'top', offset: [0, -8],
+              className: 'pin-label',
+            });
+          }
         });
 
         // Hotel também aparece para referência
@@ -962,6 +1068,53 @@ createApp({
           radius: 11, fillColor: '#1e40af', color: '#fff', weight: 3, fillOpacity: 1,
         }).addTo(markersGroup).bindPopup('<b style="font-size:12px">🏨 Hotel Banri</b>');
       }
+
+      // Re-adiciona marker do usuário se existir
+      if (userLocationMarker && mapInstance) {
+        const ll = userLocationMarker.getLatLng();
+        addUserLocationMarker(ll.lat, ll.lng, false);
+      }
+    }
+
+    function addUserLocationMarker(lat, lng, recenter) {
+      if (!mapInstance) return;
+      if (userLocationMarker) {
+        mapInstance.removeLayer(userLocationMarker);
+      }
+      userLocationMarker = L.circleMarker([lat, lng], {
+        radius: 10, fillColor: '#3b82f6', color: '#fff',
+        weight: 4, fillOpacity: 1,
+        className: 'user-location-pulse',
+      }).addTo(mapInstance).bindPopup('<b style="font-size:12px">📍 Você está aqui</b>');
+      if (recenter) {
+        mapInstance.setView([lat, lng], 15);
+        userLocationMarker.openPopup();
+      }
+    }
+
+    function locateMe() {
+      if (!navigator.geolocation) {
+        locateError.value = 'Geolocalização não disponível neste dispositivo.';
+        return;
+      }
+      locateError.value = '';
+      locating.value = true;
+      navigator.geolocation.getCurrentPosition(
+        (pos) => {
+          locating.value = false;
+          addUserLocationMarker(pos.coords.latitude, pos.coords.longitude, true);
+        },
+        (err) => {
+          locating.value = false;
+          const msgs = {
+            1: 'Permissão negada. Habilite a localização no navegador.',
+            2: 'Posição indisponível. Tente novamente.',
+            3: 'Tempo esgotado. Tente novamente.',
+          };
+          locateError.value = msgs[err.code] || 'Erro ao obter localização.';
+        },
+        { enableHighAccuracy: true, timeout: 10000, maximumAge: 30000 }
+      );
     }
 
     function checkPendingFocus() {
@@ -1008,13 +1161,7 @@ createApp({
       setTimeout(updateChromeHeights, 500);
 
       // Esconde o splash após o app estar pronto
-      const splash = document.getElementById('splash');
-      if (splash) {
-        setTimeout(() => {
-          splash.classList.add('hide');
-          setTimeout(() => { if (splash.parentNode) splash.parentNode.removeChild(splash); }, 520);
-        }, 900);
-      }
+      setTimeout(() => { window.__hideSplash && window.__hideSplash(); }, 600);
     });
     window.addEventListener('resize', updateChromeHeights);
     window.addEventListener('orientationchange', () => setTimeout(updateChromeHeights, 200));
@@ -1071,6 +1218,8 @@ createApp({
       getItemsByDate, categoryEmoji,
       toggleComplete, setRating, saveToStorage,
       toggleArchive, showArchived, archivedCount,
+      explorerCatOptions, explorerCategories, showPinNames,
+      explorerVisibleCount, locating, locateError, locateMe,
       openDetail, showOnMap, openGoogleMaps, calculateUber,
       addNewItem, renderMarkers,
       searchAddress,
